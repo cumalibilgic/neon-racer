@@ -1,10 +1,11 @@
-# Neon Racer
+# 🏎️ Neon Racer
 
-Python ve pygame-ce ile yapılmış neon temalı bir şerit yarış oyunu.
+Python ve pygame-ce ile yapılmış, synthwave temalı bir şerit yarış oyunu.
 Trafikten kaç, boost topla, en yüksek skoru yap!
 
-<img width="602" height="940" alt="image" src="https://github.com/user-attachments/assets/5c4d3f43-fdd6-45c8-afb1-4f0ecb101bd0" />
+### 🎮 [Tarayıcıda oyna](https://cumalibilgic.github.io/neon-racer/)
 
+Kurulum gerekmez. Bilgisayarda klavyeyle, telefonda dokunarak oynanır.
 
 ## Kontroller
 
@@ -12,17 +13,34 @@ Trafikten kaç, boost topla, en yüksek skoru yap!
 |-----|-------|
 | ← / A | Sol şeride geç |
 | → / D | Sağ şeride geç |
-| R / Space | Oyun bitince yeniden başla |
-| ESC | Çıkış |
-
-## Kurulum ve Çalıştırma
-
-pip install pygame-ce
-python neon_racer.py
+| Ekranın sol / sağ yarısına dokun | Telefonda şerit değiştir |
+| Space / Enter / tıkla | Oyunu başlat, yeniden başla |
 
 ## Özellikler
 
-- 3 şeritli yol ve kayan neon görünüm
-- Rastgele trafik ve çarpışma kontrolü
+- Ufka doğru uzanan, kıvrılan perspektifli yol
+- Retro güneş, ışıklı şehir silüeti ve katmanlı derinlik efekti
+- Neon ızgaralı zemin ve yol kenarında sokak lambaları
+- Egzoz izi, kıvılcım ve patlama parçacık efektleri
+- Çarpışmada ekran sarsıntısı ve flaş
+- 3 saniyelik boost pad'leri ve hız çizgileri
 - Zamanla artan hız ve skor sistemi
-- 3 saniyelik boost pad'leri
+- Animasyonlu başlangıç menüsü
+- Kaçılamayan trafik dizilimi oluşmaz, oyun her zaman adil
+
+## Bilgisayarda Çalıştırma
+
+```
+pip install pygame-ce
+python main.py
+```
+
+## Kullanılan Teknolojiler
+
+- **Python** ve **pygame-ce**: oyunun kendisi
+- **pygbag**: oyunu tarayıcıda çalışacak hale getirme
+- **GitHub Actions** ve **GitHub Pages**: her güncellemede otomatik yayına alma
+
+## Geliştirici
+
+Cumali Bilgiç ([@cumalibilgic](https://github.com/cumalibilgic))
