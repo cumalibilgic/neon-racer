@@ -218,3 +218,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Oyun kaydi (en iyi skor, ayarlar)
+save.json

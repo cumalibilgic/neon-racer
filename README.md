@@ -13,7 +13,9 @@ Kurulum gerekmez. Bilgisayarda klavyeyle, telefonda dokunarak oynanır.
 |-----|-------|
 | ← / A | Sol şeride geç |
 | → / D | Sağ şeride geç |
+| Sola / sağa kaydır | Telefonda şerit değiştir |
 | Ekranın sol / sağ yarısına dokun | Telefonda şerit değiştir |
+| M / hoparlör simgesi | Sesi aç / kapat |
 | Space / Enter / tıkla | Oyunu başlat, yeniden başla |
 
 ## Özellikler
@@ -27,6 +29,8 @@ Kurulum gerekmez. Bilgisayarda klavyeyle, telefonda dokunarak oynanır.
 - Zamanla artan hız ve skor sistemi
 - Animasyonlu başlangıç menüsü
 - Kaçılamayan trafik dizilimi oluşmaz, oyun her zaman adil
+- Kodla üretilmiş synthwave müziği ve ses efektleri
+- Kalıcı en iyi skor ve "YENİ REKOR!" kutlaması
 
 ## Bilgisayarda Çalıştırma
 
