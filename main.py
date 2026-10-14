@@ -5,6 +5,9 @@ import sys
 
 import pygame
 
+import storage
+from audio import Audio
+
 WIDTH, HEIGHT = 480, 720
 FPS = 60
 
@@ -32,6 +35,8 @@ START_SPEED = 6
 MAX_SPEED = 13
 BOOST_TIME = 180
 Z_PER_SPEED = 0.03
+
+SWIPE_DIST = 40
 
 BG = (8, 6, 20)
 SKY_TOP = (6, 4, 20)
@@ -295,6 +300,7 @@ class Game:
     def __init__(self):
         self.font = pygame.font.Font(None, 30)
         self.small_font = pygame.font.Font(None, 24)
+        self.mid_font = pygame.font.Font(None, 48)
         self.big_font = pygame.font.Font(None, 76)
         self.canvas = pygame.Surface((WIDTH * SS, HEIGHT * SS))
         self.sky = make_sky()
@@ -305,7 +311,13 @@ class Game:
         self.sky_haze = make_haze(70 * SS, 120, upward=True)
         self.vignette = make_vignette()
         self.road_zs = [Z_FAR * (i / ROAD_SEGMENTS) ** 2 for i in range(ROAD_SEGMENTS + 1)]
-        self.high_score = 0
+        self.data = storage.load()
+        self.high_score = int(self.data.get("high_score", 0))
+        self.audio = Audio(muted=bool(self.data.get("muted", False)))
+        if not WEB:
+            self.audio.start_music()
+        self.press = None
+        self.swiped = False
         self.time = 0
         self.state = "menu"
         self.reset()
@@ -330,10 +342,35 @@ class Game:
         self.shake = 0.0
         self.flash = 0
         self.over_timer = 0
+        self.new_record = False
 
     def start(self):
         self.reset()
         self.state = "play"
+        self.audio.play("start")
+        self.audio.set_music_level(1.0)
+
+    def save(self):
+        self.data["high_score"] = self.high_score
+        self.data["muted"] = self.audio.muted
+        storage.save(self.data)
+
+    def toggle_mute(self):
+        self.audio.toggle_mute()
+        self.save()
+
+    def move(self, direction):
+        lane = max(0, min(2, self.lane + direction))
+        if lane != self.lane:
+            self.lane = lane
+            self.audio.play("lane")
+
+    def mute_rect(self):
+        if self.state == "menu":
+            return pygame.Rect(WIDTH - 54, 12, 42, 42)
+        if self.state == "over" and self.over_timer > 25:
+            return pygame.Rect(WIDTH // 2 - 21, 490, 42, 42)
+        return None
 
     def project(self, xw, z):
         s = CAM / (CAM + z)
@@ -341,24 +378,50 @@ class Game:
         x = WIDTH / 2 + self.curve * (1 - s) ** 2 * 220 + xw * s
         return x * SS, y * SS, s * SS
 
+    def can_start(self):
+        return self.state == "menu" or (self.state == "over" and self.over_timer > 30)
+
     def handle_event(self, event):
-        can_start = self.state == "menu" or (self.state == "over" and self.over_timer > 30)
+        if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
+            self.audio.start_music()
+
         if event.type == pygame.KEYDOWN:
-            if self.state == "play":
+            if event.key == pygame.K_m:
+                self.toggle_mute()
+            elif self.state == "play":
                 if event.key in (pygame.K_LEFT, pygame.K_a):
-                    self.lane = max(0, self.lane - 1)
+                    self.move(-1)
                 elif event.key in (pygame.K_RIGHT, pygame.K_d):
-                    self.lane = min(2, self.lane + 1)
-            elif can_start and event.key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_r):
+                    self.move(1)
+            elif self.can_start() and event.key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_r):
                 self.start()
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            if self.state == "play":
-                if event.pos[0] < WIDTH // 2:
-                    self.lane = max(0, self.lane - 1)
-                else:
-                    self.lane = min(2, self.lane + 1)
-            elif can_start:
-                self.start()
+        # Telefonda dokunmalar da fare olayı olarak gelir.
+        # Yatay kaydırma eşiği geçtiği anda şerit değişir; kaydırma olmadan bırakılan dokunuş "tıklama" sayılır.
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            self.press = event.pos
+            self.swiped = False
+        elif event.type == pygame.MOUSEMOTION and self.press:
+            dx = event.pos[0] - self.press[0]
+            dy = event.pos[1] - self.press[1]
+            if abs(dx) > SWIPE_DIST and abs(dx) > abs(dy):
+                if self.state == "play":
+                    self.move(1 if dx > 0 else -1)
+                # Başlangıç noktasını kaydır ki uzun bir kaydırma iki şerit geçebilsin
+                self.press = (event.pos[0], self.press[1])
+                self.swiped = True
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and self.press:
+            if not self.swiped:
+                self.tap(self.press)
+            self.press = None
+
+    def tap(self, pos):
+        mute = self.mute_rect()
+        if mute and mute.inflate(16, 16).collidepoint(pos):
+            self.toggle_mute()
+        elif self.state == "play":
+            self.move(-1 if pos[0] < WIDTH // 2 else 1)
+        elif self.can_start():
+            self.start()
 
     def update(self):
         self.time += 1
@@ -453,6 +516,7 @@ class Game:
                 self.pads.remove(pad)
                 self.boost = True
                 self.boost_timer = BOOST_TIME
+                self.audio.play("boost")
                 x, y, s = self.project(self.player_x, PLAYER_Z)
                 self.burst(x, y - 20 * SS, 40, [CYAN, WHITE, YELLOW], (2, 7), (30, 55), (2, 4), 0.1)
 
@@ -465,7 +529,13 @@ class Game:
         self.state = "over"
         self.over_timer = 0
         self.boost = False
-        self.high_score = max(self.high_score, int(self.score))
+        if int(self.score) > self.high_score:
+            # İlk oyunda değil, var olan bir rekor geçildiğinde kutla
+            self.new_record = self.high_score > 0
+            self.high_score = int(self.score)
+            self.save()
+        self.audio.play("crash")
+        self.audio.set_music_level(0.5)
         self.traffic.remove(car)
         x, y, s = self.project(self.player_x, PLAYER_Z)
         self.burst(x, y - 30 * SS, 90, [ORANGE, YELLOW, MAGENTA, RED, WHITE], (2, 11), (40, 90), (2, 5), 0.12)
@@ -616,17 +686,35 @@ class Game:
         screen.blit(panel, rect)
         pygame.draw.rect(screen, color, rect, 1, border_radius=8)
 
+    def draw_mute_button(self, screen):
+        rect = self.mute_rect()
+        if not rect:
+            return
+        color = MAGENTA if self.audio.muted else CYAN
+        self.draw_panel(screen, rect, color)
+        x, y = rect.centerx - 5, rect.centery
+        pygame.draw.polygon(screen, color, [(x - 10, y - 5), (x - 4, y - 5), (x + 3, y - 11),
+                                            (x + 3, y + 11), (x - 4, y + 5), (x - 10, y + 5)])
+        if self.audio.muted:
+            pygame.draw.line(screen, color, (x + 8, y - 6), (x + 18, y + 6), 3)
+            pygame.draw.line(screen, color, (x + 8, y + 6), (x + 18, y - 6), 3)
+        else:
+            for radius in (7, 13):
+                pygame.draw.arc(screen, color, (x + 3 - radius, y - radius, radius * 2, radius * 2), -0.8, 0.8, 2)
+
     def draw_menu(self, screen):
         t = (math.sin(self.time * 0.05) + 1) / 2
         draw_neon_text(screen, "NEON RACER", self.big_font, mix(CYAN, MAGENTA, t), center=(WIDTH // 2, 90))
         draw_neon_text(screen, "DODGE  /  BOOST  /  SURVIVE", self.small_font, WHITE, center=(WIDTH // 2, 140))
+        self.draw_mute_button(screen)
 
         self.draw_panel(screen, pygame.Rect(40, 380, WIDTH - 80, 140), CYAN)
         lines = ["Yön tuşları / A - D : şerit değiştir",
-                 "Dokunmatik: ekranın sol / sağ yarısı",
-                 "Mavi pad'ler: 3 saniye BOOST"]
+                 "Telefonda: kaydır ya da sol / sağa dokun",
+                 "Mavi pad'ler: 3 saniye BOOST",
+                 "M: sesi aç / kapat"]
         for i, text in enumerate(lines):
-            draw_neon_text(screen, text, self.small_font, WHITE, center=(WIDTH // 2, 410 + i * 34))
+            draw_neon_text(screen, text, self.small_font, WHITE, center=(WIDTH // 2, 404 + i * 28))
         if self.high_score:
             draw_neon_text(screen, f"En iyi: {self.high_score}", self.font, YELLOW, center=(WIDTH // 2, 545))
         if (self.time // 30) % 2 == 0:
@@ -636,11 +724,15 @@ class Game:
         overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 140))
         screen.blit(overlay, (0, 0))
+        if self.new_record:
+            t = (math.sin(self.time * 0.15) + 1) / 2
+            draw_neon_text(screen, "YENİ REKOR!", self.mid_font, mix(YELLOW, MAGENTA, t), center=(WIDTH // 2, 215))
         draw_neon_text(screen, "GAME OVER", self.big_font, MAGENTA, center=(WIDTH // 2, 280))
         draw_neon_text(screen, f"Skor: {int(self.score)}", self.font, WHITE, center=(WIDTH // 2, 345))
         draw_neon_text(screen, f"En iyi: {self.high_score}", self.font, YELLOW, center=(WIDTH // 2, 380))
         if (self.time // 30) % 2 == 0:
             draw_neon_text(screen, "SPACE veya TIKLA: tekrar oyna", self.font, CYAN, center=(WIDTH // 2, 440))
+        self.draw_mute_button(screen)
 
     def draw(self, screen):
         c = self.canvas
