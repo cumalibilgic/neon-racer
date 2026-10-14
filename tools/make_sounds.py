@@ -55,6 +55,14 @@ def filtered_noise(n, low, high):
     return out / (np.abs(out).max() + 1e-9)
 
 
+def highpass(sound, cutoff):
+    """FFT ile 2. dereceden high-pass (faz kaydırmaz; müzik döngüsel olduğu için başla son da uyumlu kalır)."""
+    spectrum = np.fft.rfft(sound)
+    freqs = np.fft.rfftfreq(len(sound), 1 / RATE)
+    spectrum *= 1 / np.sqrt(1 + (cutoff / np.maximum(freqs, 1e-6)) ** 4)
+    return np.fft.irfft(spectrum, len(sound))
+
+
 def sweep(f0, f1, duration, harmonics=6):
     n = int(duration * RATE)
     freq = np.geomspace(f0, f1, n)
@@ -93,7 +101,7 @@ def make_music():
 
     kick_n = int(0.35 * RATE)
     kt = np.arange(kick_n) / RATE
-    kick = np.sin(2 * np.pi * np.cumsum(45 + 110 * np.exp(-kt * 30)) / RATE) * np.exp(-kt * 9)
+    kick = np.sin(2 * np.pi * np.cumsum(60 + 110 * np.exp(-kt * 30)) / RATE) * np.exp(-kt * 9)
     snare_n = int(0.45 * RATE)
     snare = (filtered_noise(snare_n, 900, 9000) * envelope(snare_n, 0.001, 0.12)
              + 0.5 * np.sin(2 * np.pi * 190 * np.arange(snare_n) / RATE) * envelope(snare_n, 0.001, 0.05))
@@ -138,9 +146,13 @@ def make_music():
     for b in range(int(total / duck_n)):
         duck[b * duck_n:(b + 1) * duck_n] = shape[:len(duck[b * duck_n:(b + 1) * duck_n])]
 
-    mix = (normalize(bass) * 0.55 * duck + normalize(echo) * 0.22 + normalize(pad) * 0.3 * duck
-           + normalize(drums) * 0.6)
-    return normalize(np.tanh(mix * 1.2), 0.8)
+    # Hoparlörde cızırtı yapmasın diye 70 Hz altı kesilir
+    bass = highpass(bass, 70)
+    drums = highpass(drums, 70)
+
+    mix = (normalize(bass) * 0.5 * duck + normalize(echo) * 0.3 + normalize(pad) * 0.4 * duck
+           + normalize(drums) * 0.4)
+    return normalize(np.tanh(mix * 0.6), 0.7)
 
 
 def make_lane():
@@ -166,7 +178,7 @@ def make_crash():
     smash = filtered_noise(n, 200, 9000) * np.exp(-t * 6)
     metal = sum(np.sin(2 * np.pi * f * t) for f in (1330, 2210, 3170)) * np.exp(-t * 9) / 3
     fade = np.minimum(1, np.linspace(10, 0, n))
-    return normalize(np.tanh((boom + smash * 0.8 + metal * 0.4) * 2.5) * fade, 0.8)
+    return normalize(np.tanh((boom + smash * 0.8 + metal * 0.4) * 1.2) * fade, 0.8)
 
 
 def make_start():
