@@ -20,7 +20,7 @@ jobs:
           python-version: "3.12"
       - name: Oyunu paketle
         run: |
-          pip install pygbag
+          pip install -r requirements.txt
           python -m pygbag --build .
       - uses: actions/upload-pages-artifact@v3
         with:

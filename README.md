@@ -35,7 +35,7 @@ Kurulum gerekmez. Bilgisayarda klavyeyle, telefonda dokunarak oynanır.
 ## Bilgisayarda Çalıştırma
 
 ```
-pip install pygame-ce
+pip install -r requirements.txt
 python main.py
 ```
 
@@ -48,3 +48,4 @@ python main.py
 ## Geliştirici
 
 Cumali Bilgiç ([@cumalibilgic](https://github.com/cumalibilgic))
+
