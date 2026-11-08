@@ -26,11 +26,15 @@ Kurulum gerekmez. Bilgisayarda klavyeyle, telefonda dokunarak oynanır.
 - Egzoz izi, kıvılcım ve patlama parçacık efektleri
 - Çarpışmada ekran sarsıntısı ve flaş
 - 3 saniyelik boost pad'leri ve hız çizgileri
+- Yolda toplanan altınlar ve kalıcı altın bankası
+- Bir çarpışmayı engelleyen, tek kullanımlık kalkan
 - Zamanla artan hız ve skor sistemi
 - Animasyonlu başlangıç menüsü
 - Kaçılamayan trafik dizilimi oluşmaz, oyun her zaman adil
 - Kodla üretilmiş synthwave müziği ve ses efektleri
 - Kalıcı en iyi skor ve "YENİ REKOR!" kutlaması
+
+Altın bankası ve en iyi skor tarayıcıda `localStorage`, masaüstünde `save.json` içinde saklanır.
 
 ## Bilgisayarda Çalıştırma
 

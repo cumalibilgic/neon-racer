@@ -15,8 +15,8 @@ Kurallar:
 
 ## 2. Altın ve kalkan
 
-- [ ] Yolda toplanabilir altın paralar. Toplam altın kaydedilsin ve ekranda görünsün.
-- [ ] Kalkan güçlendirmesi: bir çarpışmayı affeder.
+- [x] Yolda toplanabilir altın paralar. Toplam altın kaydedilsin ve ekranda görünsün.
+- [x] Kalkan güçlendirmesi: bir çarpışmayı affeder.
 
 ## 3. Mağaza
 
