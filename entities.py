@@ -37,3 +37,15 @@ class Pad:
     def __init__(self, lane, z):
         self.lane = lane
         self.z = z
+
+
+class Coin:
+    def __init__(self, lane, z):
+        self.lane = lane
+        self.z = z
+
+
+class ShieldPickup:
+    def __init__(self, lane, z):
+        self.lane = lane
+        self.z = z

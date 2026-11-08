@@ -19,6 +19,9 @@ def _normalise(data):
     score = data.get("high_score", 0)
     normalised["high_score"] = score if type(score) is int and score >= 0 else 0
 
+    coins = data.get("total_coins", 0)
+    normalised["total_coins"] = coins if type(coins) is int and coins >= 0 else 0
+
     muted = data.get("muted", False)
     normalised["muted"] = muted if isinstance(muted, bool) else False
     return normalised

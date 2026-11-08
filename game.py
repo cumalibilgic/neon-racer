@@ -8,10 +8,10 @@ import pygame
 import storage
 from audio import Audio
 from config import *  # noqa: F403
-from entities import Car, Pad, Particle
+from entities import Car, Coin, Pad, Particle, ShieldPickup
 from rendering import (
-    blit_glow, draw_car, draw_lamp, draw_neon_text, make_haze, make_sky,
-    make_skyline, make_sun, make_vignette,
+    blit_glow, draw_car, draw_coin, draw_lamp, draw_neon_text, draw_shield,
+    make_haze, make_sky, make_skyline, make_sun, make_vignette,
 )
 
 class Game:
@@ -31,6 +31,7 @@ class Game:
         self.road_zs = [Z_FAR * (i / ROAD_SEGMENTS) ** 2 for i in range(ROAD_SEGMENTS + 1)]
         self.data = storage.load()
         self.high_score = int(self.data.get("high_score", 0))
+        self.total_coins = int(self.data.get("total_coins", 0))
         self.audio = Audio(muted=bool(self.data.get("muted", False)))
         if not WEB:
             self.audio.start_music()
@@ -49,9 +50,15 @@ class Game:
         self.boost_timer = 0
         self.traffic = []
         self.pads = []
+        self.coins = []
+        self.shield_pickups = []
+        self.shield_active = False
+        self.coins_collected = 0
         self.particles = []
         self.speed_lines = []
         self.spawn_timer = 60
+        self.coin_spawn_timer = 50
+        self.shield_spawn_timer = random.randint(SHIELD_SPAWN_MIN, SHIELD_SPAWN_MAX)
         self.distance = 0.0
         self.curve = 0.0
         self.curve_target = 0.0
@@ -70,6 +77,7 @@ class Game:
 
     def save(self):
         self.data["high_score"] = self.high_score
+        self.data["total_coins"] = self.total_coins
         self.data["muted"] = self.audio.muted
         storage.save(self.data)
 
@@ -176,12 +184,31 @@ class Game:
                 self.spawn()
                 self.spawn_timer = int(max(14, random.randint(30, 60) * START_SPEED / self.speed))
 
+            self.coin_spawn_timer -= 1
+            if self.coin_spawn_timer <= 0:
+                self.spawn_coin()
+                self.coin_spawn_timer = random.randint(COIN_SPAWN_MIN, COIN_SPAWN_MAX)
+
+            if not self.shield_active and not self.shield_pickups:
+                self.shield_spawn_timer -= 1
+                if self.shield_spawn_timer <= 0:
+                    if self.spawn_shield():
+                        self.shield_spawn_timer = random.randint(SHIELD_SPAWN_MIN, SHIELD_SPAWN_MAX)
+                    else:
+                        self.shield_spawn_timer = 45
+
         for car in self.traffic:
             car.z -= step
         for pad in self.pads:
             pad.z -= step
+        for coin in self.coins:
+            coin.z -= step
+        for pickup in self.shield_pickups:
+            pickup.z -= step
         self.traffic = [car for car in self.traffic if car.z > -1.5]
         self.pads = [pad for pad in self.pads if pad.z > -1.5]
+        self.coins = [coin for coin in self.coins if coin.z > -1.5]
+        self.shield_pickups = [pickup for pickup in self.shield_pickups if pickup.z > -1.5]
 
         if self.state == "play":
             self.score += self.speed * 0.1
@@ -199,12 +226,32 @@ class Game:
 
     def spawn(self):
         busy = {car.lane for car in self.traffic if car.z > Z_FAR - 9}
+        busy.update(coin.lane for coin in self.coins if coin.z > Z_FAR - 9)
+        busy.update(pickup.lane for pickup in self.shield_pickups if pickup.z > Z_FAR - 9)
         lane = random.randrange(3)
         if lane in busy or len(busy) >= 2:
             return
         self.traffic.append(Car(lane, Z_FAR, random.choice(TRAFFIC_COLORS)))
         if random.random() < 0.18:
             self.pads.append(Pad(random.choice([i for i in range(3) if i != lane]), Z_FAR + 3))
+
+    def available_pickup_lanes(self):
+        busy = {car.lane for car in self.traffic if car.z > Z_FAR - 9}
+        busy.update(coin.lane for coin in self.coins if coin.z > Z_FAR - 9)
+        busy.update(pickup.lane for pickup in self.shield_pickups if pickup.z > Z_FAR - 9)
+        return [lane for lane in range(3) if lane not in busy]
+
+    def spawn_coin(self):
+        lanes = self.available_pickup_lanes()
+        if lanes:
+            self.coins.append(Coin(random.choice(lanes), Z_FAR))
+
+    def spawn_shield(self):
+        lanes = self.available_pickup_lanes()
+        if not lanes:
+            return False
+        self.shield_pickups.append(ShieldPickup(random.choice(lanes), Z_FAR))
+        return True
 
     def emit_exhaust(self):
         x, y, s = self.project(self.player_x, PLAYER_Z)
@@ -238,9 +285,36 @@ class Game:
                 x, y, s = self.project(self.player_x, PLAYER_Z)
                 self.burst(x, y - 20 * SS, 40, [CYAN, WHITE, YELLOW], (2, 7), (30, 55), (2, 4), 0.1)
 
+        for coin in self.coins[:]:
+            if abs(coin.z - PLAYER_Z) < PICKUP_DEPTH and abs(LANES[coin.lane] - self.player_x) < 70:
+                self.coins.remove(coin)
+                self.coins_collected += 1
+                self.total_coins += 1
+                self.save()
+                self.audio.play("lane")
+                x, y, _ = self.project(LANES[coin.lane], coin.z)
+                self.burst(x, y, 18, [YELLOW, WHITE], (1, 5), (18, 34), (2, 4), 0.04)
+
+        for pickup in self.shield_pickups[:]:
+            if abs(pickup.z - PLAYER_Z) < PICKUP_DEPTH and abs(LANES[pickup.lane] - self.player_x) < 70:
+                self.shield_pickups.remove(pickup)
+                self.shield_active = True
+                self.audio.play("boost")
+                x, y, _ = self.project(LANES[pickup.lane], pickup.z)
+                self.burst(x, y, 28, [CYAN, WHITE], (1, 6), (22, 42), (2, 4), 0.03)
+
         for car in self.traffic:
             if abs(car.z - PLAYER_Z) < CAR_DEPTH and abs(LANES[car.lane] - self.player_x) < CAR_W * 0.8:
-                self.crash(car)
+                if self.shield_active:
+                    self.shield_active = False
+                    self.traffic.remove(car)
+                    self.audio.play("boost")
+                    x, y, _ = self.project(self.player_x, PLAYER_Z)
+                    self.burst(x, y - 20 * SS, 42, [CYAN, WHITE, YELLOW], (2, 8), (25, 48), (2, 4), 0.08)
+                    self.shake = max(self.shake, 8.0)
+                    self.flash = max(self.flash, 90)
+                else:
+                    self.crash(car)
                 break
 
     def crash(self, car):
@@ -353,13 +427,15 @@ class Game:
             self.draw_pad(c, pad)
 
         items = [(car.z, 0, car) for car in self.traffic if car.z < Z_FAR]
+        items.extend((coin.z, 2, coin) for coin in self.coins)
+        items.extend((pickup.z, 3, pickup) for pickup in self.shield_pickups)
         z = LAMP_GAP - (self.distance % LAMP_GAP) - LAMP_GAP
         while z < Z_FAR:
             if z > -1.5:
                 items.append((z, 1, -1))
                 items.append((z, 1, 1))
             z += LAMP_GAP
-        items.append((PLAYER_Z, 2, None))
+        items.append((PLAYER_Z, 4, None))
         items.sort(key=lambda item: -item[0])
 
         for z, kind, obj in items:
@@ -369,6 +445,12 @@ class Game:
             elif kind == 1:
                 x, y, s = self.project(obj * LAMP_X, z)
                 draw_lamp(c, x, y, s, obj, fog_amount(z))
+            elif kind == 2:
+                x, y, s = self.project(LANES[obj.lane], z)
+                draw_coin(c, x, y, s, self.time * 0.09)
+            elif kind == 3:
+                x, y, s = self.project(LANES[obj.lane], z)
+                draw_shield(c, x, y, s, self.time * 0.08)
             else:
                 x, y, s = self.project(self.player_x, PLAYER_Z)
                 tilt = (LANES[self.lane] - self.player_x) / LANE_W
@@ -386,12 +468,16 @@ class Game:
     def draw_hud(self, screen):
         if self.state in ("play", "over"):
             draw_neon_text(screen, "NEON RACER", self.small_font, MAGENTA, topleft=(14, 14))
+            draw_neon_text(screen, f"COINS {self.total_coins}", self.small_font, YELLOW, topleft=(14, 40))
             draw_neon_text(screen, f"SCORE {int(self.score)}", self.font, WHITE, topright=(WIDTH - 14, 12))
             draw_neon_text(screen, f"{int(self.speed * 18)} KM/H", self.small_font, CYAN, topright=(WIDTH - 14, 40))
             if self.boost:
-                draw_neon_text(screen, "BOOST!", self.font, YELLOW, topleft=(14, 38))
-                pygame.draw.rect(screen, (60, 50, 20), (14, 66, 110, 6), border_radius=3)
-                pygame.draw.rect(screen, YELLOW, (14, 66, int(110 * self.boost_timer / BOOST_TIME), 6), border_radius=3)
+                draw_neon_text(screen, "BOOST!", self.font, YELLOW, topleft=(14, 68))
+                pygame.draw.rect(screen, (60, 50, 20), (14, 96, 110, 6), border_radius=3)
+                pygame.draw.rect(screen, YELLOW, (14, 96, int(110 * self.boost_timer / BOOST_TIME), 6), border_radius=3)
+            if self.shield_active:
+                draw_shield(screen, 24, 130, 0.7, self.time * 0.08)
+                draw_neon_text(screen, "SHIELD", self.small_font, CYAN, topleft=(43, 118))
 
         if self.state == "menu":
             self.draw_menu(screen)
@@ -426,17 +512,19 @@ class Game:
         draw_neon_text(screen, "DODGE  /  BOOST  /  SURVIVE", self.small_font, WHITE, center=(WIDTH // 2, 140))
         self.draw_mute_button(screen)
 
-        self.draw_panel(screen, pygame.Rect(40, 380, WIDTH - 80, 140), CYAN)
+        self.draw_panel(screen, pygame.Rect(40, 370, WIDTH - 80, 174), CYAN)
         lines = ["Yön tuşları / A - D : şerit değiştir",
                  "Telefonda: kaydır ya da sol / sağa dokun",
-                 "Mavi pad'ler: 3 saniye BOOST",
+                 "Mavi pad: BOOST  •  Altın: COIN",
+                 "Kalkan al, sonraki çarpışmayı engelle",
                  "M: sesi aç / kapat"]
         for i, text in enumerate(lines):
-            draw_neon_text(screen, text, self.small_font, WHITE, center=(WIDTH // 2, 404 + i * 28))
+            draw_neon_text(screen, text, self.small_font, WHITE, center=(WIDTH // 2, 392 + i * 28))
         if self.high_score:
-            draw_neon_text(screen, f"En iyi: {self.high_score}", self.font, YELLOW, center=(WIDTH // 2, 545))
+            draw_neon_text(screen, f"En iyi: {self.high_score}", self.font, YELLOW, center=(WIDTH // 2, 562))
+        draw_neon_text(screen, f"Altın bankası: {self.total_coins}", self.small_font, YELLOW, center=(WIDTH // 2, 588))
         if (self.time // 30) % 2 == 0:
-            draw_neon_text(screen, "SPACE veya TIKLA: BAŞLA", self.font, CYAN, center=(WIDTH // 2, 590))
+            draw_neon_text(screen, "SPACE veya TIKLA: BAŞLA", self.font, CYAN, center=(WIDTH // 2, 630))
 
     def draw_game_over(self, screen):
         overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
@@ -448,8 +536,9 @@ class Game:
         draw_neon_text(screen, "GAME OVER", self.big_font, MAGENTA, center=(WIDTH // 2, 280))
         draw_neon_text(screen, f"Skor: {int(self.score)}", self.font, WHITE, center=(WIDTH // 2, 345))
         draw_neon_text(screen, f"En iyi: {self.high_score}", self.font, YELLOW, center=(WIDTH // 2, 380))
+        draw_neon_text(screen, f"Toplanan altın: {self.coins_collected}", self.font, YELLOW, center=(WIDTH // 2, 412))
         if (self.time // 30) % 2 == 0:
-            draw_neon_text(screen, "SPACE veya TIKLA: tekrar oyna", self.font, CYAN, center=(WIDTH // 2, 440))
+            draw_neon_text(screen, "SPACE veya TIKLA: tekrar oyna", self.font, CYAN, center=(WIDTH // 2, 452))
         self.draw_mute_button(screen)
 
     def draw(self, screen):

@@ -198,3 +198,31 @@ def draw_lamp(surface, x, y, s, side, fog=0.0):
     if fog < 0.6:
         for k in (1, 2):
             blit_glow(surface, color, (head[0], y + k * 9 * s), (SS + 8 * s) / k, 1)
+
+
+def draw_coin(surface, x, y, scale, phase=0.0):
+    radius = max(3, int(13 * scale))
+    width = max(2, int(radius * (0.3 + 0.7 * abs(math.cos(phase)))))
+    blit_glow(surface, YELLOW, (x, y), radius * 1.7, 2, 0.8)
+    pygame.draw.ellipse(surface, (117, 67, 12), (x - width - 2, y - radius - 2, (width + 2) * 2, (radius + 2) * 2))
+    pygame.draw.ellipse(surface, YELLOW, (x - width, y - radius, width * 2, radius * 2))
+    pygame.draw.line(surface, (255, 248, 177), (x, y - radius * 0.55), (x, y + radius * 0.55), max(1, int(scale * 2)))
+
+
+def draw_shield(surface, x, y, scale=1.0, phase=0.0):
+    radius = max(6, int(15 * scale))
+    pulse = 1.0 + 0.08 * math.sin(phase)
+    half_width = radius * pulse
+    points = [
+        (x, y - radius * 1.15),
+        (x + half_width, y - radius * 0.82),
+        (x + half_width * 0.82, y + radius * 0.18),
+        (x, y + radius * 1.15),
+        (x - half_width * 0.82, y + radius * 0.18),
+        (x - half_width, y - radius * 0.82),
+    ]
+    blit_glow(surface, CYAN, (x, y), radius * 1.8, 2, 1.1)
+    pygame.draw.polygon(surface, (8, 38, 58), points)
+    pygame.draw.polygon(surface, CYAN, points, max(1, int(2 * scale)))
+    pygame.draw.line(surface, (205, 255, 255), (x - radius * 0.38, y), (x - radius * 0.06, y + radius * 0.34), max(1, int(2 * scale)))
+    pygame.draw.line(surface, (205, 255, 255), (x - radius * 0.06, y + radius * 0.34), (x + radius * 0.42, y - radius * 0.3), max(1, int(2 * scale)))
